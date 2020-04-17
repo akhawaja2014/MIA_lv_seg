@@ -144,6 +144,43 @@ def calculate_smoothing_matrix(image, contextual_eff, local_eff, R):
 			# print(smoothing_matrix[row,col])
 	return smoothing_matrix
 
+def cluster(image):
+	
+	# reshape image
+
+	pixel_values = image.reshape((image.shape[0]*image.shape[1],1))
+
+	# convert to float
+	
+	pixel_values = np.float32(pixel_values)
+	
+	# define stopping criteria
+	
+	criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)	
+
+	# number of clusters (K)
+	
+	k = 2
+
+	_, labels, (centers) = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+
+	# convert back to 8 bit values
+	
+	centers = np.uint8(centers)
+
+	# flatten the labels array
+	
+	labels = labels.flatten()
+
+	# convert all pixels to the color of the centroids
+	
+	segmented_image = centers[labels.flatten()]
+
+	# reshape back to the original image dimension
+	
+	segmented_image = segmented_image.reshape(image.shape)
+	
+	return segmented_image
 
 if __name__ == '__main__':
 	# image = cv2.imread('scene.png')
@@ -154,12 +191,15 @@ if __name__ == '__main__':
 	# print(calculate_contextual(image))
 	# np.savetxt('test.txt',out)
 	image = imageio.imread('original_2D_02_28.png')
-	out = smoothing(image)
+	smoothed_img = smoothing(image)
+	clustered_img = cluster(smoothed_img)
 	# contextual_dist = calculate_contextual(image,2,0.2)
 	# out = np.exp(contextual_dist*(-1)*50)
 	plt.figure(figsize=(11,6))
-	plt.subplot(121), plt.imshow(image,cmap='gray'),plt.title('Original')
+	plt.subplot(221), plt.imshow(image,cmap='gray'),plt.title('Original')
 	plt.xticks([]), plt.yticks([])
-	plt.subplot(122), plt.imshow(out,cmap='gray'),plt.title('Adaptive smoothing')
+	plt.subplot(222), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
 	plt.xticks([]), plt.yticks([])
 	plt.show()
