@@ -1,10 +1,14 @@
-import numpy as np
-import cv2
-from pydicom import dcmread
-from matplotlib import pyplot as plt 
-from PIL import Image, ImageFilter
-import math
-import imageio
+import numpy as np 						# importing numpy library for numerical calculations 
+import cv2								#cv2 for opencv
+from pydicom import dcmread  			# to read and deal with dicom files
+from matplotlib import pyplot as plt     # for plotting and graphing
+from PIL import Image, ImageFilter        # Python imaging Library adds supports to opening manipulating
+										# different file formats of images  
+import math								# This module provides access to the mathematical
+										# functions defined by the C standard.
+import imageio							# Imageio is a Python library that provides an easy interface 
+										#to read and write a wide range of image data, including animated
+										#  images, volumetric data, and scientific formats.
 # def get_neighboring_pixels(image,R,y,x,isFloat):
 # 	#create an array with dimension of kernel, same type as image
 # 	#neighbor = np.zeros((R,R))
@@ -190,7 +194,7 @@ if __name__ == '__main__':
 	# print(image)
 	# print(calculate_contextual(image))
 	# np.savetxt('test.txt',out)
-	image = imageio.imread('original_2D_02_28.png')
+	image = imageio.imread('/home/arsalan/Desktop/Medical Imaging Project/MIA_lv_seg/')
 	smoothed_img = smoothing(image)
 	clustered_img = cluster(smoothed_img)
 	# contextual_dist = calculate_contextual(image,2,0.2)
