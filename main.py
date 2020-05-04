@@ -3,12 +3,14 @@ import cv2								#cv2 for opencv
 from pydicom import dcmread  			# to read and deal with dicom files
 from matplotlib import pyplot as plt     # for plotting and graphing
 from PIL import Image, ImageFilter        # Python imaging Library adds supports to opening manipulating
-										# different file formats of images  
+						# different file formats of images  
 import math								# This module provides access to the mathematical
 										# functions defined by the C standard.
 import imageio							# Imageio is a Python library that provides an easy interface 
 										#to read and write a wide range of image data, including animated
 										#  images, volumetric data, and scientific formats.
+import scipy.optimize as optimization
+import argparse
 # def get_neighboring_pixels(image,R,y,x,isFloat):
 # 	#create an array with dimension of kernel, same type as image
 # 	#neighbor = np.zeros((R,R))
@@ -160,7 +162,7 @@ def cluster(image):
 	
 	# define stopping criteria
 	
-	criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)	
+	criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1)	
 
 	# number of clusters (K)
 	
@@ -186,6 +188,34 @@ def cluster(image):
 	
 	return segmented_image
 
+def find_lv(seg_img):
+	#img = cv2.cvtColor(segmented_image, cv2.COLOR_BGR2GRAY)
+	#print(len(seg_img.shape))
+	circles = cv2.HoughCircles(seg_img, cv2.HOUGH_GRADIENT,1,20,param1=20,param2=10,minRadius=14,maxRadius=25)
+	print(circles)
+	if circles is not None:
+		circles = np.round(circles[0, :]).astype("int")
+	# loop over the (x, y) coordinates and radius of the circles
+	for (x, y, r) in circles:
+		# draw the circle in the output image, then draw a rectangle
+		# corresponding to the center of the circle
+		cv2.circle(seg_img, (x, y), r, (25, 127, 125), 2)
+		print(x)
+		print(y)
+		print(r)
+		cv2.rectangle(seg_img, (x - 50, y - 30), (x + 40, y + 30), (0, 128, 255))
+		slicedImage = seg_img[y-30:y+30, x-50:x+40]
+		plt.imshow(slicedImage)
+		#cv2.imshow("Sliced Image", seg_img)
+	# show the output image
+	#plt.imshow(seg_img)
+	#plt.show
+	#cv2.imshow('segmented',seg_img)
+	#cv2.waitKey(0)
+ 	#t = optimization.leastsq(10,10,args = (1,segmented_image))
+ 	# optimization.leastsq(, x0, args=(xdata, ydata))
+	return seg_img 
+
 if __name__ == '__main__':
 	# image = cv2.imread('scene.png')
 	# image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -197,6 +227,8 @@ if __name__ == '__main__':
 	image = imageio.imread('/home/arsalan/Desktop/Medical Imaging Project/MIA_lv_seg/')
 	smoothed_img = smoothing(image)
 	clustered_img = cluster(smoothed_img)
+	
+	
 	# contextual_dist = calculate_contextual(image,2,0.2)
 	# out = np.exp(contextual_dist*(-1)*50)
 	plt.figure(figsize=(11,6))
@@ -206,4 +238,11 @@ if __name__ == '__main__':
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
 	plt.xticks([]), plt.yticks([])
+
+	lv_image = find_lv(clustered_img)
+	
+	plt.subplot(224), plt.imshow(lv_image),plt.title('Left Ventricle')
+	plt.xticks([]), plt.yticks([])
+	
 	plt.show()
+
