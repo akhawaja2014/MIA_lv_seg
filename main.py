@@ -82,8 +82,9 @@ def calculate_variance(image):
 			pow(np.sum((np.sum(image,axis=1)),axis = 0)/image.size,2))
 	return variance
 
-def smoothing(image, theta = 0.1, S = 8, R = 2, alpha = 10 , n_iter = 5):
+def smoothing(image, theta = 0.25, S = 8, R = 1, alpha = 15 , n_iter = 5):
 	
+	# theta = 0.1,S = 8,R = 2,alpha = 10,n_iter = 5
 	contextual_dist = calculate_contextual(image, R, theta)
 	# local_dist = calculate_local(image)
 	contextual_eff = np.exp(contextual_dist*(-1)*alpha)
@@ -164,6 +165,7 @@ def cluster(image):
 
 	_, labels, (centers) = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
 
+
 	# convert back to 8 bit values
 	
 	centers = np.uint8(centers)
@@ -172,14 +174,16 @@ def cluster(image):
 	
 	labels = labels.flatten()
 
+	min_center = np.minimum(centers[0],centers[1])
+	# max_center = np.maximum(centers[0],centers[1])
+
+	centers = np.where(centers == min_center, 0 , 255)
 	# convert all pixels to the color of the centroids
 	
 	segmented_image = centers[labels.flatten()]
-
 	# reshape back to the original image dimension
 	
 	segmented_image = segmented_image.reshape(image.shape)
-	
 	return segmented_image
 
 if __name__ == '__main__':
@@ -190,16 +194,81 @@ if __name__ == '__main__':
 	# print(image)
 	# print(calculate_contextual(image))
 	# np.savetxt('test.txt',out)
-	image = imageio.imread('original_2D_02_28.png')
+	
+	image = imageio.imread('original_2D_09_26.png')
 	smoothed_img = smoothing(image)
 	clustered_img = cluster(smoothed_img)
+	clustered_img = cv2.convertScaleAbs(clustered_img)
+	image_contour = image.copy()
+	# circles = cv2.HoughCircles(clustered_img, cv2.HOUGH_GRADIENT,1,20,param1=20,param2=10,minRadius=14,maxRadius=25)
+	# if circles is not None:
+	# 	circles = np.round(circles[0,:]).astype("int")
+	# 	for (x,y,r) in circles:
+	# 		cv2.circle(clustered_img, (x,y),r, (25,127,125),2)
+	# 		cv2.rectangle(clustered_img, (x - 50, y - 30), (x + 40, y + 30), (0, 128, 255))
+	# 		slicedImage = clustered_img[y-30:y+30, x-50:x+40]
+	
+
+	# print(clustered_img.shape)
+	# copy_image = clustered_img.copy()
+	img_center_x = int(image.shape[1]/2)
+	img_center_y = int(image.shape[0]/2)
+	min_dist = 20
+	cnt, _ = cv2.findContours(clustered_img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
+	print(len(cnt))
+	# print(cnt.dtype)
+	for i in range(len(cnt)):
+		M = cv2.moments(cnt[i])
+		# print(M)
+		if M['m00'] != 0:
+			cx = int(M['m10']/M['m00'])
+			cy = int(M['m01']/M['m00'])
+			# print(str(cx) + ":" + str(cy))
+			dist = abs(cx - img_center_x) + abs(cy - img_center_y)
+			if dist < min_dist:
+				min_dist = dist
+				lv_index = i
+	area = cv2.contourArea(cnt[lv_index])
+	print(area)
+	# poligon_mask = np.zeros(image.shape)
+	# epsilon = 0.001
+	# approx = cv2.approxPolyDP(cnt,epsilon,True)
+	im = cv2.cvtColor(image_contour,cv2.COLOR_GRAY2BGR)
+	# cv2.drawContours(im, cnt[lv_index], cv2.FILLED , (0,255,0),1)
+	# cv2.imshow('Draw Contours',im)
+	# cv2.waitKey(0)
+	lv_contour = cnt[lv_index].reshape(-1,2)
+	for (x,y) in lv_contour:
+		cv2.circle(im,(x,y),1,(0,255,0),1)
+	# params = cv2.SimpleBlobDetector_Params()
+	# params.filterByCircularity = True
+	# params.minCircularity = 0.9
+	# ver = (cv2.__version__).split('.')
+	# if int(ver[0]) < 3 :
+	# 	detector = cv2.SimpleBlobDetector(params)
+	# else : 
+	# 	detector = cv2.SimpleBlobDetector_create(params)
+	
+	# # detector.empty()
+	# keypoints = detector.detect(image)
+	# print(len(keypoints))
+	# blank = np.zeros((1, 1))
+	# im_with_keypoints = cv2.drawKeypoints(image, keypoints, blank ,(0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+	# cv2.imshow("Keypoints", im_with_keypoints)
+	# cv2.waitKey(0)
+	# cv2.destroyAllWindows()
+	# cv2.imwrite('clustered_img.png',im_with_keypoints)
+
 	# contextual_dist = calculate_contextual(image,2,0.2)
 	# out = np.exp(contextual_dist*(-1)*50)
+
 	plt.figure(figsize=(11,6))
 	plt.subplot(221), plt.imshow(image,cmap='gray'),plt.title('Original')
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(222), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(224), plt.imshow(im),plt.title('LV cavity')
 	plt.xticks([]), plt.yticks([])
 	plt.show()
