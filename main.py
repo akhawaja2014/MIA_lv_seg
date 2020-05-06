@@ -7,7 +7,7 @@ import math
 import imageio
 from sklearn.metrics import confusion_matrix
 import nibabel as nib
-
+import os
 # def get_neighboring_pixels(image,R,y,x,isFloat):
 # 	#create an array with dimension of kernel, same type as image
 # 	#neighbor = np.zeros((R,R))
@@ -202,19 +202,15 @@ def compute_iou(y_pred, y_true):
 	IoU = intersection / union.astype(np.float32)
 	return np.mean(IoU)
 
-if __name__ == '__main__':
-	# image = cv2.imread('scene.png')
-	# image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-	# dicomfile = dcmread('Image (0001).dcm')
-	# image = dicomfile.pixel_array
-	# print(image)
-	# print(calculate_contextual(image))
-	# np.savetxt('test.txt',out)
-	ground_truth_img = imageio.imread("../training/patient001/original_2D_1_mask/original_2D_01.png")
-	ground_truth_img = np.where(ground_truth_img == 255, 1 , 0)
-	image = imageio.imread('../training/patient001/original_2D_01/original_2D_01.png')
-	smoothed_img = smoothing(image)
-	clustered_img = cluster(smoothed_img)
+def run_with_png(image, ground_truth_img):
+	
+	# ground_truth_img = imageio.imread(mask_path)
+	ground_truth_img = np.where(ground_truth_img == 3, 1 , 0)
+
+	# image = imageio.imread(img_path)
+	# print(image.dtype)
+	# smoothed_img = smoothing(image)
+	clustered_img = cluster(image)
 	clustered_img = cv2.convertScaleAbs(clustered_img)
 	image_contour = image.copy()
 	# circles = cv2.HoughCircles(clustered_img, cv2.HOUGH_GRADIENT,1,20,param1=20,param2=10,minRadius=14,maxRadius=25)
@@ -234,6 +230,7 @@ if __name__ == '__main__':
 	cnt, _ = cv2.findContours(clustered_img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
 	print(len(cnt))
 	# print(cnt.dtype)
+	lv_index = 0
 	for i in range(len(cnt)):
 		M = cv2.moments(cnt[i])
 		# print(M)
@@ -242,23 +239,29 @@ if __name__ == '__main__':
 			cy = int(M['m01']/M['m00'])
 			# print(str(cx) + ":" + str(cy))
 			dist = abs(cx - img_center_x) + abs(cy - img_center_y)
-			if dist < min_dist:
-				min_dist = dist
-				lv_index = i
+		else:
+			continue
+		if dist < min_dist:
+			min_dist = dist
+			lv_index = i
+
 	area = cv2.contourArea(cnt[lv_index])
 	print(area)
 	# poligon_mask = np.zeros(image.shape)
 	# epsilon = 0.001
 	# approx = cv2.approxPolyDP(cnt,epsilon,True)
-	im = cv2.cvtColor(image_contour,cv2.COLOR_GRAY2BGR)
+
+	# im = cv2.cvtColor(image_contour,cv2.COLOR_GRAY2BGR)
 	# cv2.drawContours(im, cnt[lv_index], cv2.FILLED , (0,255,0),1)
 	# cv2.imshow('Draw Contours',im)
 	# cv2.waitKey(0)
-	lv_contour = cnt[lv_index].reshape(-1,2)
-	for (x,y) in lv_contour:
-		cv2.circle(im,(x,y),1,(0,255,0),cv2.FILLED)
+	# lv_contour = cnt[lv_index].reshape(-1,2)
+	# for (x,y) in lv_contour:
+		# cv2.circle(im,(x,y),1,(0,255,0),cv2.FILLED)
 
 	mask = np.zeros_like(image)
+	mask = cv2.convertScaleAbs(mask)
+	print("mask dtype "+str(mask.dtype))
 	cv2.drawContours(mask,cnt,lv_index,color=1,thickness=-1)
 
 	
@@ -271,6 +274,8 @@ if __name__ == '__main__':
 
 	iou = compute_iou(mask,ground_truth_img)
 	print("IOU: " + str(iou))
+
+	return iou
 	# params = cv2.SimpleBlobDetector_Params()
 	# params.filterByCircularity = True
 	# params.minCircularity = 0.9
@@ -293,13 +298,96 @@ if __name__ == '__main__':
 	# contextual_dist = calculate_contextual(image,2,0.2)
 	# out = np.exp(contextual_dist*(-1)*50)
 
-	plt.figure(figsize=(11,6))
-	plt.subplot(221), plt.imshow(image,cmap='gray'),plt.title('Original')
-	plt.xticks([]), plt.yticks([])
-	plt.subplot(222), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
-	plt.xticks([]), plt.yticks([])
-	plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
-	plt.xticks([]), plt.yticks([])
-	plt.subplot(224), plt.imshow(mask),plt.title('LV cavity')
-	plt.xticks([]), plt.yticks([])
-	plt.show()
+	# plt.figure(figsize=(11,6))
+	# plt.subplot(221), plt.imshow(image,cmap='gray'),plt.title('Original')
+	# plt.xticks([]), plt.yticks([])
+	# # plt.subplot(222), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
+	# # plt.xticks([]), plt.yticks([])
+	# plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
+	# plt.xticks([]), plt.yticks([])
+	# plt.subplot(224), plt.imshow(mask),plt.title('LV cavity')
+	# plt.xticks([]), plt.yticks([])
+	# plt.show()
+
+if __name__ == '__main__':
+	# image = cv2.imread('scene.png')
+	# image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+	# dicomfile = dcmread('Image (0001).dcm')
+	# image = dicomfile.pixel_array
+	# print(image)
+	# print(calculate_contextual(image))
+	# np.savetxt('test.txt',out)
+
+	# img_path = '../training/patient001/original_2D_01/original_2D_01.png'
+	# mask_path = "../training/patient001/original_2D_1_mask/original_2D_01.png"
+	# run_with_png(img_path, mask_path)
+	data_dir = '/home/bao/Documents/vibot_m1_slides/s2/medical image analysis/training/{}'
+	subjects = ['patient{}'.format(str(x).zfill(3)) for x in range(1, 101)]
+	iou_lists = []
+	for subject in subjects:
+		subject_dir = data_dir.format(subject)
+		sa_zip_file = os.path.join(subject_dir,'{}_4d.nii.gz'.format(subject))
+		
+		nifty_img = nib.load(sa_zip_file)
+		img = np.array(nifty_img.dataobj)
+
+		cfg_file = os.path.join(subject_dir,'Info.cfg')
+		slice_info = []
+		with open(cfg_file,"r") as data:
+			r_count = 0
+			for line in data:
+				if r_count == 2:
+					break
+
+				a = line.split(":")
+				slice_info.append(a)
+				r_count += 1
+		
+		# print(str(slice_info[0][0]) + " " + str(slice_info[0][1]) )
+
+		# print(str(slice_info[1][0]) + " " + str(slice_info[1][1]) )
+		ED_slice = int(slice_info[0][1])
+		ES_slice = int(slice_info[1][1])
+
+
+		ED_imgs = img[:,:,:,ED_slice]
+		ES_imgs = img[:,:,:,ES_slice]
+
+		# ED_mask_path = "../training/patient001/patient001_frame{}_gt.nii.gz".format(str(ED_slice).zfill(2))
+		ED_mask_zip_file = os.path.join(subject_dir,'{}_frame{}_gt.nii.gz'.format(subject,str(ED_slice).zfill(2)))
+		ES_mask_zip_file = os.path.join(subject_dir,'{}_frame{}_gt.nii.gz'.format(subject,str(ES_slice).zfill(2)))
+		
+		ED_nifty_masks = nib.load(ED_mask_zip_file)
+		ED_masks = np.array(ED_nifty_masks.dataobj)
+		
+		ES_nifty_masks = nib.load(ES_mask_zip_file)
+		ES_masks = np.array(ES_nifty_masks.dataobj)
+
+		iou_list = []
+		
+		for j in range(ED_imgs.shape[2]):
+			ED_img = ED_imgs[:,:,j]
+			ED_mask = ED_masks[:,:,j]
+			max_gt_val = np.amax(ED_mask)
+			if max_gt_val != 3:
+				continue
+			iou = run_with_png(ED_img,ED_mask)
+			iou_list.append(iou)
+		
+		for j in range(ES_imgs.shape[2]):
+			ES_img = ES_imgs[:,:,j]
+			ES_mask = ES_masks[:,:,j]
+			max_gt_val = np.amax(ES_mask)
+			if max_gt_val != 3:
+				continue
+			iou = run_with_png(ES_img,ES_mask)
+			iou_list.append(iou)
+
+		mIOU = sum(iou_list)/len(iou_list)
+		iou_lists.append(mIOU)
+		iou_list.clear()
+		slice_info.clear()	
+	mIOUs = sum(iou_lists)/len(iou_lists)
+	print(mIOUs) 
+
+	
