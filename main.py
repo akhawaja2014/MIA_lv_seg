@@ -5,6 +5,9 @@ from matplotlib import pyplot as plt
 from PIL import Image, ImageFilter
 import math
 import imageio
+from sklearn.metrics import confusion_matrix
+import nibabel as nib
+
 # def get_neighboring_pixels(image,R,y,x,isFloat):
 # 	#create an array with dimension of kernel, same type as image
 # 	#neighbor = np.zeros((R,R))
@@ -186,6 +189,19 @@ def cluster(image):
 	segmented_image = segmented_image.reshape(image.shape)
 	return segmented_image
 
+def compute_iou(y_pred, y_true):
+	# ytrue, ypred is a flatten vector
+	y_pred = y_pred.flatten()
+	y_true = y_true.flatten()
+	current = confusion_matrix(y_true, y_pred, labels=[0, 1])
+	# compute mean iou
+	intersection = np.diag(current)
+	ground_truth_set = current.sum(axis=1)
+	predicted_set = current.sum(axis=0)
+	union = ground_truth_set + predicted_set - intersection
+	IoU = intersection / union.astype(np.float32)
+	return np.mean(IoU)
+
 if __name__ == '__main__':
 	# image = cv2.imread('scene.png')
 	# image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -194,8 +210,9 @@ if __name__ == '__main__':
 	# print(image)
 	# print(calculate_contextual(image))
 	# np.savetxt('test.txt',out)
-	
-	image = imageio.imread('original_2D_09_26.png')
+	ground_truth_img = imageio.imread("../training/patient001/original_2D_1_mask/original_2D_01.png")
+	ground_truth_img = np.where(ground_truth_img == 255, 1 , 0)
+	image = imageio.imread('../training/patient001/original_2D_01/original_2D_01.png')
 	smoothed_img = smoothing(image)
 	clustered_img = cluster(smoothed_img)
 	clustered_img = cv2.convertScaleAbs(clustered_img)
@@ -239,7 +256,21 @@ if __name__ == '__main__':
 	# cv2.waitKey(0)
 	lv_contour = cnt[lv_index].reshape(-1,2)
 	for (x,y) in lv_contour:
-		cv2.circle(im,(x,y),1,(0,255,0),1)
+		cv2.circle(im,(x,y),1,(0,255,0),cv2.FILLED)
+
+	mask = np.zeros_like(image)
+	cv2.drawContours(mask,cnt,lv_index,color=1,thickness=-1)
+
+	
+	#Calculate RMS errors
+	N = image.shape[0]*image.shape[1]
+	sq_diff = np.zeros_like(image)
+	sq_diff = pow(mask - ground_truth_img,2)
+	rms = math.sqrt(np.sum((np.sum(sq_diff,axis=1)),axis = 0)/N)
+	print("RMS error: " + str(rms))
+
+	iou = compute_iou(mask,ground_truth_img)
+	print("IOU: " + str(iou))
 	# params = cv2.SimpleBlobDetector_Params()
 	# params.filterByCircularity = True
 	# params.minCircularity = 0.9
@@ -269,6 +300,6 @@ if __name__ == '__main__':
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
 	plt.xticks([]), plt.yticks([])
-	plt.subplot(224), plt.imshow(im),plt.title('LV cavity')
+	plt.subplot(224), plt.imshow(mask),plt.title('LV cavity')
 	plt.xticks([]), plt.yticks([])
 	plt.show()
