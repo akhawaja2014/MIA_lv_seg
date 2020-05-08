@@ -85,9 +85,11 @@ def calculate_variance(image):
 			pow(np.sum((np.sum(image,axis=1)),axis = 0)/image.size,2))
 	return variance
 
-def smoothing(image, theta = 0.25, S = 8, R = 1, alpha = 15 , n_iter = 5):
+def smoothing(image, theta = 0.1,S = 6,R = 2,alpha = 15,n_iter = 5):
 	
 	# theta = 0.1,S = 8,R = 2,alpha = 10,n_iter = 5
+	# theta = 0.25,S = 8, R = 1, alpha = 15 , n_iter = 5
+
 	contextual_dist = calculate_contextual(image, R, theta)
 	# local_dist = calculate_local(image)
 	contextual_eff = np.exp(contextual_dist*(-1)*alpha)
@@ -164,7 +166,7 @@ def cluster(image):
 
 	# number of clusters (K)
 	
-	k = 2
+	k = 3
 
 	_, labels, (centers) = cv2.kmeans(pixel_values, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
 
@@ -177,17 +179,19 @@ def cluster(image):
 	
 	labels = labels.flatten()
 
-	min_center = np.minimum(centers[0],centers[1])
-	# max_center = np.maximum(centers[0],centers[1])
+	min_center = np.amin(centers)
+	max_center = np.amax(centers)
 
-	centers = np.where(centers == min_center, 0 , 255)
+	centers = np.where(centers == min_center, 0 , centers)
+	centers = np.where(centers == max_center, 255, centers)
+	
 	# convert all pixels to the color of the centroids
 	
 	segmented_image = centers[labels.flatten()]
 	# reshape back to the original image dimension
 	
 	segmented_image = segmented_image.reshape(image.shape)
-	return segmented_image
+	return segmented_image, centers 
 
 def compute_iou(y_pred, y_true):
 	# ytrue, ypred is a flatten vector
@@ -205,14 +209,36 @@ def compute_iou(y_pred, y_true):
 def run_with_png(image, ground_truth_img):
 	
 	# ground_truth_img = imageio.imread(mask_path)
-	ground_truth_img = np.where(ground_truth_img == 3, 1 , 0)
-
+	ground_truth_img_copy = ground_truth_img.copy()
+	ground_truth_img_copy = np.where(ground_truth_img_copy < 255, 0,255)
+	ground_truth_img = np.where(ground_truth_img == 255, 1 , 0)
+	# ground_truth_img = np.where(ground_truth_img == 3, 1 , 0)
 	# image = imageio.imread(img_path)
 	# print(image.dtype)
-	# smoothed_img = smoothing(image)
-	clustered_img = cluster(image)
+
+
+	#Contrast stretching
+	# min_pix = np.amin(image)
+	# max_pix = np.amax(image)
+	# image = ((image-min_pix)/(max_pix - min_pix))*255
+	
+	smoothed_img = smoothing(image)
+	min_pix = np.amin(smoothed_img)
+	max_pix = np.amax(smoothed_img)
+	smoothed_img = ((smoothed_img-min_pix)/(max_pix - min_pix))*255
+
+	clustered_img, centers = cluster(smoothed_img)
+	centers = np.sort(centers)
+	centers = np.delete(centers,0)
 	clustered_img = cv2.convertScaleAbs(clustered_img)
 	image_contour = image.copy()
+	image_contour = cv2.convertScaleAbs(image_contour)
+	
+	clustered_slices = np.zeros((image.shape[0],image.shape[1],len(centers)))
+	for i in range(len(centers)):
+		clustered_slices[:,:,i] = np.where(clustered_img == centers[i], clustered_img, 0)
+
+
 	# circles = cv2.HoughCircles(clustered_img, cv2.HOUGH_GRADIENT,1,20,param1=20,param2=10,minRadius=14,maxRadius=25)
 	# if circles is not None:
 	# 	circles = np.round(circles[0,:]).astype("int")
@@ -224,58 +250,94 @@ def run_with_png(image, ground_truth_img):
 
 	# print(clustered_img.shape)
 	# copy_image = clustered_img.copy()
+	contours_list = []
 	img_center_x = int(image.shape[1]/2)
 	img_center_y = int(image.shape[0]/2)
-	min_dist = 20
-	cnt, _ = cv2.findContours(clustered_img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_NONE)
-	print(len(cnt))
+	min_dist = 60
+	min_dist_fix = 1000
+	clustered_slices = cv2.convertScaleAbs(clustered_slices)
+	# print(clustered_slices.shape)
+	for i in range(len(centers)):
+
+		cnt, _ = cv2.findContours(clustered_slices[:,:,i], mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+		contours_list.append(cnt)
+
+	print(len(contours_list))
 	# print(cnt.dtype)
 	lv_index = 0
-	for i in range(len(cnt)):
-		M = cv2.moments(cnt[i])
-		# print(M)
-		if M['m00'] != 0:
-			cx = int(M['m10']/M['m00'])
-			cy = int(M['m01']/M['m00'])
-			# print(str(cx) + ":" + str(cy))
-			dist = abs(cx - img_center_x) + abs(cy - img_center_y)
-		else:
+	lv_index_fix = 0
+	im = cv2.cvtColor(image_contour,cv2.COLOR_GRAY2BGR)
+	
+	list_lv_index = []
+	list_min_dist = []
+	for j in range(len(contours_list)):
+		cnt = contours_list[j]
+		if not cnt:
+			list_lv_index.append(lv_index_fix)
+			list_min_dist.append(min_dist_fix)
 			continue
-		if dist < min_dist:
-			min_dist = dist
-			lv_index = i
+		print("Length contour " + str(j) + " " + str(len(cnt)))
+		for i in range(len(cnt)):
+			M = cv2.moments(cnt[i])
+			# print(M)
+			if M['m00'] != 0 and M['m00'] < 3000:
+				cx = int(M['m10']/M['m00'])
+				cy = int(M['m01']/M['m00'])
+				# print(str(cx) + ":" + str(cy))
+				dist = abs(cx - img_center_x) + abs(cy - img_center_y)
+			else:
+				continue
+			if dist < min_dist:
+				min_dist = dist
+				lv_index = i
+		list_lv_index.append(lv_index)
+		list_min_dist.append(min_dist)
 
-	area = cv2.contourArea(cnt[lv_index])
-	print(area)
+	mask = np.zeros_like(image)
+	mask = cv2.convertScaleAbs(mask)
+	print("mask dtype "+str(mask.dtype))
+
+	
+	min_index = list_min_dist.index(min(list_min_dist))
+	# print(min_index)
+	final_lv_index = list_lv_index[min_index]
+	# print(final_lv_index)
+
+	# print(contours_list)
+	final_contour = contours_list[min_index]
+	# print(final_contour)
+
+
 	# poligon_mask = np.zeros(image.shape)
 	# epsilon = 0.001
 	# approx = cv2.approxPolyDP(cnt,epsilon,True)
 
-	# im = cv2.cvtColor(image_contour,cv2.COLOR_GRAY2BGR)
-	# cv2.drawContours(im, cnt[lv_index], cv2.FILLED , (0,255,0),1)
+	
+	# cv2.drawContours(im, final_contour, final_lv_index , (0,255,0),cv2.FILLED)
+
 	# cv2.imshow('Draw Contours',im)
 	# cv2.waitKey(0)
 	# lv_contour = cnt[lv_index].reshape(-1,2)
 	# for (x,y) in lv_contour:
 		# cv2.circle(im,(x,y),1,(0,255,0),cv2.FILLED)
 
-	mask = np.zeros_like(image)
-	mask = cv2.convertScaleAbs(mask)
-	print("mask dtype "+str(mask.dtype))
-	cv2.drawContours(mask,cnt,lv_index,color=1,thickness=-1)
-
+	if final_contour[final_lv_index]:
+		
+		cv2.drawContours(mask,final_contour,final_lv_index,color=1,thickness=-1)
+		area = cv2.contourArea(final_contour[final_lv_index])
+		# print(area)
 	
 	#Calculate RMS errors
-	N = image.shape[0]*image.shape[1]
-	sq_diff = np.zeros_like(image)
-	sq_diff = pow(mask - ground_truth_img,2)
-	rms = math.sqrt(np.sum((np.sum(sq_diff,axis=1)),axis = 0)/N)
-	print("RMS error: " + str(rms))
+	# N = image.shape[0]*image.shape[1]
+	# sq_diff = np.zeros_like(image)
+	# sq_diff = pow(mask - ground_truth_img,2)
+	# rms = math.sqrt(np.sum((np.sum(sq_diff,axis=1)),axis = 0)/N)
+	# print("RMS error: " + str(rms))
 
 	iou = compute_iou(mask,ground_truth_img)
 	print("IOU: " + str(iou))
 
-	return iou
+	# return iou
 	# params = cv2.SimpleBlobDetector_Params()
 	# params.filterByCircularity = True
 	# params.minCircularity = 0.9
@@ -298,96 +360,108 @@ def run_with_png(image, ground_truth_img):
 	# contextual_dist = calculate_contextual(image,2,0.2)
 	# out = np.exp(contextual_dist*(-1)*50)
 
-	# plt.figure(figsize=(11,6))
-	# plt.subplot(221), plt.imshow(image,cmap='gray'),plt.title('Original')
-	# plt.xticks([]), plt.yticks([])
-	# # plt.subplot(222), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
-	# # plt.xticks([]), plt.yticks([])
-	# plt.subplot(223), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
-	# plt.xticks([]), plt.yticks([])
-	# plt.subplot(224), plt.imshow(mask),plt.title('LV cavity')
-	# plt.xticks([]), plt.yticks([])
-	# plt.show()
+	plt.figure(figsize=(11,6))
+	plt.subplot(231), plt.imshow(image,cmap='gray'),plt.title('Original')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(232), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(233), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(234), plt.imshow(mask),plt.title('LV cavity')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(235), plt.imshow(im),plt.title('Contours image')
+	plt.xticks([]), plt.yticks([])
+	plt.show()
 
 if __name__ == '__main__':
-	# image = cv2.imread('scene.png')
-	# image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-	# dicomfile = dcmread('Image (0001).dcm')
-	# image = dicomfile.pixel_array
-	# print(image)
-	# print(calculate_contextual(image))
-	# np.savetxt('test.txt',out)
+	
 
-	# img_path = '../training/patient001/original_2D_01/original_2D_01.png'
-	# mask_path = "../training/patient001/original_2D_1_mask/original_2D_01.png"
-	# run_with_png(img_path, mask_path)
-	data_dir = '/home/bao/Documents/vibot_m1_slides/s2/medical image analysis/training/{}'
-	subjects = ['patient{}'.format(str(x).zfill(3)) for x in range(1, 101)]
-	iou_lists = []
-	for subject in subjects:
-		subject_dir = data_dir.format(subject)
-		sa_zip_file = os.path.join(subject_dir,'{}_4d.nii.gz'.format(subject))
+	img_path = '../training/patient001/original_2D_ED_slice/original_2D_02.png'
+	mask_path = "../training/patient001/original_2D_ED_mask/original_2D_02.png"
+	sa_zip_file = '../training/patient034/patient034_frame16.nii.gz'
+
+	image = imageio.imread(img_path)
+	ground_truth_img = imageio.imread(mask_path)
+
+	run_with_png(image, ground_truth_img)
+	# clustered_img = cluster(image)
+
+	# plt.imshow(clustered_img)
+	# plt.show()
+	# a = nib.load(sa_zip_file)
+	# img = np.array(a.dataobj)
+
+	# plt.hist(img[:,:,9])
+
+
+
+
+
+
+	# np.seterr(divide='ignore', invalid='ignore')
+	# data_dir = '/home/bao/Documents/vibot_m1_slides/s2/medical image analysis/training/{}'
+	# subjects = ['patient{}'.format(str(x).zfill(3)) for x in range(1, 101)]
+	# iou_lists = []
+	# for subject in subjects:
+	# 	subject_dir = data_dir.format(subject)
+	# 	sa_zip_file = os.path.join(subject_dir,'{}_4d.nii.gz'.format(subject))
 		
-		nifty_img = nib.load(sa_zip_file)
-		img = np.array(nifty_img.dataobj)
+	# 	nifty_img = nib.load(sa_zip_file)
+	# 	img = np.array(nifty_img.dataobj)
 
-		cfg_file = os.path.join(subject_dir,'Info.cfg')
-		slice_info = []
-		with open(cfg_file,"r") as data:
-			r_count = 0
-			for line in data:
-				if r_count == 2:
-					break
+	# 	cfg_file = os.path.join(subject_dir,'Info.cfg')
+	# 	slice_info = []
+	# 	with open(cfg_file,"r") as data:
+	# 		r_count = 0
+	# 		for line in data:
+	# 			if r_count == 2:
+	# 				break
 
-				a = line.split(":")
-				slice_info.append(a)
-				r_count += 1
+	# 			a = line.split(":")
+	# 			slice_info.append(a)
+	# 			r_count += 1
 		
-		# print(str(slice_info[0][0]) + " " + str(slice_info[0][1]) )
-
-		# print(str(slice_info[1][0]) + " " + str(slice_info[1][1]) )
-		ED_slice = int(slice_info[0][1])
-		ES_slice = int(slice_info[1][1])
+	# 	ED_slice = int(slice_info[0][1])
+	# 	ES_slice = int(slice_info[1][1])
 
 
-		ED_imgs = img[:,:,:,ED_slice]
-		ES_imgs = img[:,:,:,ES_slice]
+	# 	ED_imgs = img[:,:,:,ED_slice]
+	# 	ES_imgs = img[:,:,:,ES_slice]
 
-		# ED_mask_path = "../training/patient001/patient001_frame{}_gt.nii.gz".format(str(ED_slice).zfill(2))
-		ED_mask_zip_file = os.path.join(subject_dir,'{}_frame{}_gt.nii.gz'.format(subject,str(ED_slice).zfill(2)))
-		ES_mask_zip_file = os.path.join(subject_dir,'{}_frame{}_gt.nii.gz'.format(subject,str(ES_slice).zfill(2)))
+	# 	ED_mask_zip_file = os.path.join(subject_dir,'{}_frame{}_gt.nii.gz'.format(subject,str(ED_slice).zfill(2)))
+	# 	ES_mask_zip_file = os.path.join(subject_dir,'{}_frame{}_gt.nii.gz'.format(subject,str(ES_slice).zfill(2)))
 		
-		ED_nifty_masks = nib.load(ED_mask_zip_file)
-		ED_masks = np.array(ED_nifty_masks.dataobj)
+	# 	ED_nifty_masks = nib.load(ED_mask_zip_file)
+	# 	ED_masks = np.array(ED_nifty_masks.dataobj)
 		
-		ES_nifty_masks = nib.load(ES_mask_zip_file)
-		ES_masks = np.array(ES_nifty_masks.dataobj)
+	# 	ES_nifty_masks = nib.load(ES_mask_zip_file)
+	# 	ES_masks = np.array(ES_nifty_masks.dataobj)
 
-		iou_list = []
+	# 	iou_list = []
 		
-		for j in range(ED_imgs.shape[2]):
-			ED_img = ED_imgs[:,:,j]
-			ED_mask = ED_masks[:,:,j]
-			max_gt_val = np.amax(ED_mask)
-			if max_gt_val != 3:
-				continue
-			iou = run_with_png(ED_img,ED_mask)
-			iou_list.append(iou)
+	# 	for j in range(ED_imgs.shape[2]):
+	# 		ED_img = ED_imgs[:,:,j]
+	# 		ED_mask = ED_masks[:,:,j]
+	# 		max_gt_val = np.amax(ED_mask)
+	# 		if max_gt_val != 3:
+	# 			continue
+	# 		iou = run_with_png(ED_img,ED_mask)
+	# 		iou_list.append(iou)
 		
-		for j in range(ES_imgs.shape[2]):
-			ES_img = ES_imgs[:,:,j]
-			ES_mask = ES_masks[:,:,j]
-			max_gt_val = np.amax(ES_mask)
-			if max_gt_val != 3:
-				continue
-			iou = run_with_png(ES_img,ES_mask)
-			iou_list.append(iou)
+	# 	for j in range(ES_imgs.shape[2]):
+	# 		ES_img = ES_imgs[:,:,j]
+	# 		ES_mask = ES_masks[:,:,j]
+	# 		max_gt_val = np.amax(ES_mask)
+	# 		if max_gt_val != 3:
+	# 			continue
+	# 		iou = run_with_png(ES_img,ES_mask)
+	# 		iou_list.append(iou)
 
-		mIOU = sum(iou_list)/len(iou_list)
-		iou_lists.append(mIOU)
-		iou_list.clear()
-		slice_info.clear()	
-	mIOUs = sum(iou_lists)/len(iou_lists)
-	print(mIOUs) 
+	# 	mIOU = sum(iou_list)/len(iou_list)
+	# 	iou_lists.append(mIOU)
+	# 	iou_list.clear()
+	# 	slice_info.clear()	
+	# mIOUs = sum(iou_lists)/len(iou_lists)
+	# print(mIOUs) 
 
 	
