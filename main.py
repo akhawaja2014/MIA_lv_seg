@@ -85,11 +85,11 @@ def calculate_variance(image):
 			pow(np.sum((np.sum(image,axis=1)),axis = 0)/image.size,2))
 	return variance
 
-def smoothing(image, theta = 0.1,S = 6,R = 2,alpha = 15,n_iter = 5):
+def smoothing(image, theta = 0.1,S = 8,R = 2,alpha = 10,n_iter = 5):
 	
 	# theta = 0.1,S = 8,R = 2,alpha = 10,n_iter = 5
 	# theta = 0.25,S = 8, R = 1, alpha = 15 , n_iter = 5
-
+	# theta = 0.1,S = 6,R = 2,alpha = 15,n_iter = 5
 	contextual_dist = calculate_contextual(image, R, theta)
 	# local_dist = calculate_local(image)
 	contextual_eff = np.exp(contextual_dist*(-1)*alpha)
@@ -235,9 +235,10 @@ def run_with_png(image, ground_truth_img):
 	image_contour = cv2.convertScaleAbs(image_contour)
 	
 	clustered_slices = np.zeros((image.shape[0],image.shape[1],len(centers)))
+	clustered_slices_copy = clustered_slices.copy()
 	for i in range(len(centers)):
 		clustered_slices[:,:,i] = np.where(clustered_img == centers[i], clustered_img, 0)
-
+		clustered_slices_copy[:,:,i] = np.where(clustered_img == centers[i], 1, 0)
 
 	# circles = cv2.HoughCircles(clustered_img, cv2.HOUGH_GRADIENT,1,20,param1=20,param2=10,minRadius=14,maxRadius=25)
 	# if circles is not None:
@@ -255,32 +256,38 @@ def run_with_png(image, ground_truth_img):
 	img_center_y = int(image.shape[0]/2)
 	min_dist = 60
 	min_dist_fix = 1000
-	clustered_slices = cv2.convertScaleAbs(clustered_slices)
+	clustered_slices_copy = cv2.convertScaleAbs(clustered_slices_copy)
 	# print(clustered_slices.shape)
 	for i in range(len(centers)):
-
-		cnt, _ = cv2.findContours(clustered_slices[:,:,i], mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+		kernel = np.ones((3,3),np.uint8)
+		clustered_slices_copy[:,:,i] = cv2.morphologyEx(clustered_slices_copy[:,:,i], cv2.MORPH_CLOSE, kernel)
+		cnt, _ = cv2.findContours(clustered_slices_copy[:,:,i], mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
 		contours_list.append(cnt)
 
 	print(len(contours_list))
 	# print(cnt.dtype)
-	lv_index = 0
+	
 	lv_index_fix = 0
+	lv_area_fix = 0
 	im = cv2.cvtColor(image_contour,cv2.COLOR_GRAY2BGR)
 	
 	list_lv_index = []
 	list_min_dist = []
+	# list_lv_area = []
 	for j in range(len(contours_list)):
+		min_dist = 60
+		lv_index = 0
 		cnt = contours_list[j]
 		if not cnt:
 			list_lv_index.append(lv_index_fix)
 			list_min_dist.append(min_dist_fix)
+			# list_lv_area.append(lv_area_fix)
 			continue
 		print("Length contour " + str(j) + " " + str(len(cnt)))
 		for i in range(len(cnt)):
 			M = cv2.moments(cnt[i])
 			# print(M)
-			if M['m00'] != 0 and M['m00'] < 3000:
+			if 0 < M['m00'] < 3000:
 				cx = int(M['m10']/M['m00'])
 				cy = int(M['m01']/M['m00'])
 				# print(str(cx) + ":" + str(cy))
@@ -290,16 +297,17 @@ def run_with_png(image, ground_truth_img):
 			if dist < min_dist:
 				min_dist = dist
 				lv_index = i
+				# lv_area = M['m00']
 		list_lv_index.append(lv_index)
 		list_min_dist.append(min_dist)
-
+		# list_lv_area.append(lv_area)
 	mask = np.zeros_like(image)
 	mask = cv2.convertScaleAbs(mask)
 	print("mask dtype "+str(mask.dtype))
 
 	
 	min_index = list_min_dist.index(min(list_min_dist))
-	# print(min_index)
+	print(min_index)
 	final_lv_index = list_lv_index[min_index]
 	# print(final_lv_index)
 
@@ -321,12 +329,16 @@ def run_with_png(image, ground_truth_img):
 	# for (x,y) in lv_contour:
 		# cv2.circle(im,(x,y),1,(0,255,0),cv2.FILLED)
 
-	if final_contour[final_lv_index]:
+	if final_contour:
 		
 		cv2.drawContours(mask,final_contour,final_lv_index,color=1,thickness=-1)
 		area = cv2.contourArea(final_contour[final_lv_index])
-		# print(area)
-	
+		# cv2.drawContours(im, final_contour, final_lv_index , (0,255,0),cv2.FILLED)
+		print(area)
+	# test = contours_list[1]
+	# if test:
+	# 	print("true")
+	cv2.drawContours(im, contours_list[1], -1 , (0,255,0),cv2.FILLED)
 	#Calculate RMS errors
 	# N = image.shape[0]*image.shape[1]
 	# sq_diff = np.zeros_like(image)
@@ -371,13 +383,15 @@ def run_with_png(image, ground_truth_img):
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(235), plt.imshow(im),plt.title('Contours image')
 	plt.xticks([]), plt.yticks([])
+	plt.subplot(236), plt.imshow(ground_truth_img_copy),plt.title('Ground truth image')
+	plt.xticks([]), plt.yticks([])
 	plt.show()
 
 if __name__ == '__main__':
 	
 
-	img_path = '../training/patient001/original_2D_ED_slice/original_2D_02.png'
-	mask_path = "../training/patient001/original_2D_ED_mask/original_2D_02.png"
+	img_path = '../training/patient004/original_2D_ED_slice/original_2D_04.png'
+	mask_path = "../training/patient004/original_2D_ED_mask/original_2D_04.png"
 	sa_zip_file = '../training/patient034/patient034_frame16.nii.gz'
 
 	image = imageio.imread(img_path)
