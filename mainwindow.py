@@ -8,7 +8,7 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-
+from PyQt5.QtWidgets import QMessageBox
 import numpy as np
 import cv2
 from PIL import Image
@@ -310,23 +310,28 @@ class Ui_MainWindow(object):
         self.calculateButton.setEnabled(True)
 
     def onCalculateButtonPressed(self):
+        area_ed = 0
+        area_es = 0
+        volume_ed = 0
+        volume_es = 0
+        ejection_fraction = 0
+        if not self.inputEDNum.text():
+            msg = QMessageBox.critical(None,'Error','ED and ES slice number should not be empty!',QMessageBox.Ok)
+            return
+        if not self.inputESNum.text():
+            msg = QMessageBox.critical(None,'Error','ED and ES slice number should not be empty!',QMessageBox.Ok)
+            return
+        ed_num = int(self.inputEDNum.text())-1
+        es_num = int(self.inputESNum.text())-1
+        total_ed = self.slice_data[:,:,:,ed_num].shape[2]
+        total_es = self.slice_data[:,:,:,es_num].shape[2]
+        ed_mid_slice = int(total_ed/2)
         self.runButton.setEnabled(False)
         self.inputSliceNum.setEnabled(False)
         self.horizontalScrollBar.setEnabled(False)
         self.inputEDNum.setEnabled(False)
         self.inputESNum.setEnabled(False)
         self.calculateButton.setEnabled(False)
-
-        area_ed = 0
-        area_es = 0
-        volume_ed = 0
-        volume_es = 0
-        ejection_fraction = 0
-        ed_num = int(self.inputEDNum.text())-1
-        es_num = int(self.inputESNum.text())-1
-        total_ed = self.slice_data[:,:,:,ed_num].shape[2]
-        total_es = self.slice_data[:,:,:,es_num].shape[2]
-        ed_mid_slice = int(total_ed/2)
         lv_center_x,lv_center_y = lv_localize(self.slice_data[:,:,ed_mid_slice,ed_num])
         for i in range(total_ed):
             segmentImg, area1 = segment_img_with_center(self.slice_data[:,:,i,ed_num],lv_center_x,lv_center_y)
@@ -355,6 +360,11 @@ class Ui_MainWindow(object):
             self.file_path = fname
             self.setFilePathLabel(fname)
 
+    def showAlert(self):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setText("ED and ES slice number should not be empty!")
+        msg.setWindowTitle("Error")
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
