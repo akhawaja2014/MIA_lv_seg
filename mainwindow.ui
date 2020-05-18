@@ -132,7 +132,7 @@
     <property name="geometry">
      <rect>
       <x>350</x>
-      <y>290</y>
+      <y>360</y>
       <width>89</width>
       <height>25</height>
      </rect>
@@ -359,7 +359,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>dm3</string>
+     <string>mm3</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_12">
@@ -372,7 +372,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>dm3</string>
+     <string>mm3</string>
     </property>
    </widget>
    <widget class="QLabel" name="label_13">
@@ -386,6 +386,19 @@
     </property>
     <property name="text">
      <string>%</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_14">
+    <property name="geometry">
+     <rect>
+      <x>346</x>
+      <y>170</y>
+      <width>101</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
     </property>
    </widget>
   </widget>

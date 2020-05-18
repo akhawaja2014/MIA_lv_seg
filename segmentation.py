@@ -85,7 +85,7 @@ def calculate_variance(image):
 			pow(np.sum((np.sum(image,axis=1)),axis = 0)/image.size,2))
 	return variance
 
-def smoothing(image, theta = 0.1,S = 8,R = 2,alpha = 10,n_iter = 5):
+def smoothing(image, theta = 0.25,S = 8, R = 1, alpha = 15 , n_iter = 5):
 	
 	# theta = 0.1,S = 8,R = 2,alpha = 10,n_iter = 5
 	# theta = 0.25,S = 8, R = 1, alpha = 15 , n_iter = 5
@@ -236,9 +236,15 @@ def run_with_png(image, ground_truth_img):
 	
 	clustered_slices = np.zeros((image.shape[0],image.shape[1],len(centers)))
 	clustered_slices_copy = clustered_slices.copy()
+	#k > 2
 	for i in range(len(centers)):
 		clustered_slices[:,:,i] = np.where(clustered_img == centers[i], clustered_img, 0)
 		clustered_slices_copy[:,:,i] = np.where(clustered_img == centers[i], 1, 0)
+
+	#k = 2
+	# clustered_slices = np.where(clustered_img == centers, clustered_img, 0)
+	# clustered_slices_copy = np.where(clustered_img == centers, 1, 0)
+
 
 	# circles = cv2.HoughCircles(clustered_img, cv2.HOUGH_GRADIENT,1,20,param1=20,param2=10,minRadius=14,maxRadius=25)
 	# if circles is not None:
@@ -258,12 +264,19 @@ def run_with_png(image, ground_truth_img):
 	min_dist_fix = 1000
 	clustered_slices_copy = cv2.convertScaleAbs(clustered_slices_copy)
 	# print(clustered_slices.shape)
+	#for k > 2
 	for i in range(len(centers)):
 		kernel = np.ones((3,3),np.uint8)
 		clustered_slices_copy[:,:,i] = cv2.morphologyEx(clustered_slices_copy[:,:,i], cv2.MORPH_CLOSE, kernel)
 		cnt, _ = cv2.findContours(clustered_slices_copy[:,:,i], mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
 		contours_list.append(cnt)
-
+	
+	#for k = 2
+	# kernel = np.ones((3,3),np.uint8)
+	# clustered_slices_copy = cv2.morphologyEx(clustered_slices_copy, cv2.MORPH_CLOSE, kernel)
+	# cnt, _ = cv2.findContours(clustered_slices_copy, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+	# contours_list.append(cnt)
+	
 	print(len(contours_list))
 	# print(cnt.dtype)
 	
@@ -287,7 +300,7 @@ def run_with_png(image, ground_truth_img):
 		for i in range(len(cnt)):
 			M = cv2.moments(cnt[i])
 			# print(M)
-			if 0 < M['m00'] < 3000:
+			if 100 < M['m00'] < 3000:
 				cx = int(M['m10']/M['m00'])
 				cy = int(M['m01']/M['m00'])
 				# print(str(cx) + ":" + str(cy))
@@ -339,7 +352,11 @@ def run_with_png(image, ground_truth_img):
 	# if test:
 	# 	print("true")
 	# cv2.drawContours(im, contours_list[1], -1 , (0,255,0),cv2.FILLED)
+	#k > 2
 	cv2.drawContours(im, contours_list[1], -1 , (0,255,0),1)
+	
+	# k = 2
+	# cv2.drawContours(im, contours_list[0], -1 , (0,255,0),1)
 	#Calculate RMS errors
 	# N = image.shape[0]*image.shape[1]
 	# sq_diff = np.zeros_like(image)
@@ -478,19 +495,71 @@ def segment_img(image):
 	# if test:
 	# 	print("true")
 	# cv2.drawContours(im, contours_list[1], -1 , (0,255,0),cv2.FILLED)
-	cv2.drawContours(im, final_contour, final_lv_index , (0,255,0),1)
+	cv2.drawContours(im, final_contour, final_lv_index , (0,255,0),2)
 	return im, area
 if __name__ == '__main__':
 	
 
 	img_path = '../training/patient001/original_2D_ED_slice/original_2D_01.png'
 	mask_path = "../training/patient001/original_2D_ED_mask/original_2D_01.png"
-	sa_zip_file = '../training/patient034/patient034_frame16.nii.gz'
+	sa_zip_file = '../training/patient068/patient068_4d.nii.gz'
 
 	image = imageio.imread(img_path)
 	ground_truth_img = imageio.imread(mask_path)
+	# run_with_png(image, ground_truth_img)
+	smoothed_img = smoothing(image)
+	clustered_img, centers = cluster(smoothed_img)
+	centers = np.sort(centers)
+	centers = np.delete(centers,0)		
+	clustered_slices = np.zeros((image.shape[0],image.shape[1],len(centers)))
+	images_copy1 = image.copy()
+	images_copy2 = image.copy()
+	clustered_slices = cv2.convertScaleAbs(clustered_slices)
+	images_copy1 = cv2.cvtColor(images_copy1,cv2.COLOR_GRAY2BGR)
+	images_copy2 = cv2.cvtColor(images_copy2,cv2.COLOR_GRAY2BGR)
 
-	run_with_png(image, ground_truth_img)
+	for i in range(len(centers)):
+		clustered_slices[:,:,i] = np.where(clustered_img == centers[i], clustered_img, 0)
+		circles = cv2.HoughCircles(clustered_slices[:,:,i], cv2.HOUGH_GRADIENT,1,200,param1=20,param2=10,minRadius=8,maxRadius=25)
+		if circles is not None:
+			if i == 0:
+				for j in circles[0,:]:
+					cv2.circle(images_copy1,(j[0],j[1]),j[2],color=1,thickness=-1)
+					cv2.circle(images_copy1,(j[0],j[1]),2,(0,0,255),3)
+			if i == 1:
+				for j in circles[0,:]:
+					cv2.circle(images_copy2,(j[0],j[1]),j[2],color=1,thickness=-1)
+					cv2.circle(images_copy2,(j[0],j[1]),2,(0,0,255),3)
+		
+
+
+
+	plt.figure(figsize=(11,6))
+	plt.subplot(231), plt.imshow(image,cmap='gray'),plt.title('Original')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(232), plt.imshow(smoothed_img,cmap='gray'),plt.title('Adaptive smoothing')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(233), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(234), plt.imshow(images_copy1),plt.title('LV cavity')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(235), plt.imshow(images_copy2),plt.title('Contours image')
+	plt.xticks([]), plt.yticks([])
+	plt.subplot(236), plt.imshow(ground_truth_img),plt.title('Ground truth image')
+	plt.xticks([]), plt.yticks([])
+	plt.show()
+
+	# image = nib.load(sa_zip_file)
+	# image_data = image.get_fdata()
+	# for i in range(image_data[:,:,:,0].shape[2]):
+
+	# 	f = np.fft.fft2(image_data[:,:,i,])
+	# 	# fh = np.absolute(np.fft.)
+	# 	print(f.shape)
+
+
+
+
 	# clustered_img = cluster(image)
 
 	# plt.imshow(clustered_img)

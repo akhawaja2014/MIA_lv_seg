@@ -16,13 +16,11 @@ class Main(QtWidgets.QMainWindow, Ui_MainWindow):
 		self.ui.loadFileButton.clicked.connect(self.open_file)
 
 	def open_file(self):
-		fname, _filter = QtWidgets.QFileDialog.getOpenFileName(None, "Open File", '.', "(*.nii.gz)")
-		self.ui.file_path = fname
-		self.ui.setFilePathLabel(fname)
-		# file = open(name[0],'r')
-		# if file:
-		# 	print(file.read())
-		# file.close()
+		fname, _filter = QtWidgets.QFileDialog.getOpenFileName(self, "Open File", '.', "(*.nii.gz)")
+		if fname:
+			self.ui.file_path = fname
+			self.ui.setFilePathLabel(fname)
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)

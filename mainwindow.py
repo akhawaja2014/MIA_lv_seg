@@ -15,6 +15,7 @@ from PIL import Image
 import nibabel as nib
 import math
 from segmentation import segment_img
+
 class Ui_MainWindow(object):
 
     file_path = ''
@@ -62,7 +63,7 @@ class Ui_MainWindow(object):
         self.segImageLabel.setText("")
         self.segImageLabel.setObjectName("segImageLabel")
         self.runButton = QtWidgets.QPushButton(self.centralwidget)
-        self.runButton.setGeometry(QtCore.QRect(350, 290, 89, 25))
+        self.runButton.setGeometry(QtCore.QRect(350, 360, 89, 25))
         self.runButton.setObjectName("runButton")
         self.horizontalScrollBar = QtWidgets.QScrollBar(self.centralwidget)
         self.horizontalScrollBar.setGeometry(QtCore.QRect(90, 460, 160, 16))
@@ -129,6 +130,10 @@ class Ui_MainWindow(object):
         self.label_13 = QtWidgets.QLabel(self.centralwidget)
         self.label_13.setGeometry(QtCore.QRect(710, 600, 67, 17))
         self.label_13.setObjectName("label_13")
+        self.label_14 = QtWidgets.QLabel(self.centralwidget)
+        self.label_14.setGeometry(QtCore.QRect(346, 170, 101, 16))
+        self.label_14.setText("")
+        self.label_14.setObjectName("label_14")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 22))
@@ -146,6 +151,7 @@ class Ui_MainWindow(object):
         self.horizontalScrollBar.valueChanged.connect(self.onScrollBarChanged)
         self.runButton.clicked.connect(self.onRunButtonPressed)
         self.calculateButton.clicked.connect(self.onCalculateButtonPressed)
+        self.loadFileButton.clicked.connect(self.open_file)
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
@@ -160,7 +166,7 @@ class Ui_MainWindow(object):
         self.label_8.setText(_translate("MainWindow", "/"))
         self.calculateButton.setText(_translate("MainWindow", "Calculate"))
         self.label_5.setText(_translate("MainWindow", "ED Slice number :"))
-        self.label_6.setText(_translate("MainWindow", "ED Slice number :"))
+        self.label_6.setText(_translate("MainWindow", "ES Slice number :"))
         self.label_7.setText(_translate("MainWindow", "ED Volume : "))
         self.label_9.setText(_translate("MainWindow", "ES Volume :"))
         self.label_10.setText(_translate("MainWindow", "Ejection Fraction : "))
@@ -308,14 +314,14 @@ class Ui_MainWindow(object):
         self.inputEDNum.setEnabled(False)
         self.inputESNum.setEnabled(False)
         self.calculateButton.setEnabled(False)
-        
+
         area_ed = 0
         area_es = 0
         volume_ed = 0
         volume_es = 0
         ejection_fraction = 0
-        ed_num = int(self.inputEDNum.text())
-        es_num = int(self.inputESNum.text())
+        ed_num = int(self.inputEDNum.text())-1
+        es_num = int(self.inputESNum.text())-1
         total_ed = self.slice_data[:,:,:,ed_num].shape[2]
         total_es = self.slice_data[:,:,:,es_num].shape[2]
 
@@ -325,8 +331,8 @@ class Ui_MainWindow(object):
         for j in range(total_es):
             segmentImg, area1 = segment_img(self.slice_data[:,:,j,es_num])
             area_es = area_es + area1
-        volume_ed = area_ed * self.header[0] * self.header[1] /1000
-        volume_es = area_es * self.header[0] * self.header[1] /1000
+        volume_ed = area_ed * self.header[0] * self.header[1] * self.header[2] /1000
+        volume_es = area_es * self.header[0] * self.header[1] * self.header[2] /1000
         ejection_fraction = ((volume_ed - volume_es)/volume_ed)*100
         self.edVolume.setText(str(volume_ed))
         self.esVolume.setText(str(volume_es))
@@ -338,6 +344,13 @@ class Ui_MainWindow(object):
         self.inputEDNum.setEnabled(True)
         self.inputESNum.setEnabled(True)
         self.calculateButton.setEnabled(True)
+
+    def open_file(self):
+        fname, _filter = QtWidgets.QFileDialog.getOpenFileName(None, "Open File", '.', "(*.nii.gz)")
+        if fname:
+            self.file_path = fname
+            self.setFilePathLabel(fname)
+
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
