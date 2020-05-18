@@ -14,7 +14,7 @@ import cv2
 from PIL import Image
 import nibabel as nib
 import math
-from segmentation import segment_img
+from segmentation import segment_img,lv_localize,segment_img_with_center
 
 class Ui_MainWindow(object):
 
@@ -292,7 +292,9 @@ class Ui_MainWindow(object):
         self.inputEDNum.setEnabled(False)
         self.inputESNum.setEnabled(False)
         self.calculateButton.setEnabled(False)
-        segmentImg, area = segment_img(self.slice_data[:,:,self.current_img,self.current_slice])
+        ed_mid_slice = int(self.slice_data[:,:,:,self.current_slice].shape[2]/2)
+        lv_center_x,lv_center_y = lv_localize(self.slice_data[:,:,ed_mid_slice,self.current_slice])
+        segmentImg, area = segment_img_with_center(self.slice_data[:,:,self.current_img,self.current_slice],lv_center_x,lv_center_y)
         if segmentImg.any():
             height, width, channel = segmentImg.shape 
             bytesPerLine = 3 * width
@@ -324,12 +326,14 @@ class Ui_MainWindow(object):
         es_num = int(self.inputESNum.text())-1
         total_ed = self.slice_data[:,:,:,ed_num].shape[2]
         total_es = self.slice_data[:,:,:,es_num].shape[2]
-
+        ed_mid_slice = int(total_ed/2)
+        lv_center_x,lv_center_y = lv_localize(self.slice_data[:,:,ed_mid_slice,ed_num])
         for i in range(total_ed):
-            segmentImg, area1 = segment_img(self.slice_data[:,:,i,ed_num])
+            segmentImg, area1 = segment_img_with_center(self.slice_data[:,:,i,ed_num],lv_center_x,lv_center_y)
             area_ed = area_ed + area1
+        lv_center_x,lv_center_y = lv_localize(self.slice_data[:,:,ed_mid_slice,es_num])
         for j in range(total_es):
-            segmentImg, area1 = segment_img(self.slice_data[:,:,j,es_num])
+            segmentImg, area1 = segment_img_with_center(self.slice_data[:,:,j,es_num],lv_center_x,lv_center_y)
             area_es = area_es + area1
         volume_ed = area_ed * self.header[0] * self.header[1] * self.header[2] /1000
         volume_es = area_es * self.header[0] * self.header[1] * self.header[2] /1000
