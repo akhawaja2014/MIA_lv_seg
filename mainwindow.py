@@ -201,7 +201,15 @@ class Ui_MainWindow(object):
         # ed_img = nib.load("../training/patient001/patient001_4d.nii.gz")
         # ed_img_data = self.ed_img.get_fdata()
         if 0 <= current_img < self.total_img:
+            max_pixel_value = self.slice_data.max()
+
+            if max_pixel_value > 0:
+                multiplier = 255.0 / max_pixel_value
+            else:
+                multiplier = 1.0
+
             image = self.slice_data[:,:,current_img,self.current_slice]
+            image = np.rot90(image[:,::-1],1) * multiplier
             image_data = cv2.convertScaleAbs(image)
             height, width = image_data.shape 
             qImg = QtGui.QImage(image_data.data,width,height,QtGui.QImage.Format_Indexed8)
@@ -292,9 +300,20 @@ class Ui_MainWindow(object):
         self.inputEDNum.setEnabled(False)
         self.inputESNum.setEnabled(False)
         self.calculateButton.setEnabled(False)
+        max_pixel_value = self.slice_data.max()
+
+        if max_pixel_value > 0:
+            multiplier = 255.0 / max_pixel_value
+        else:
+            multiplier = 1.0
         ed_mid_slice = int(self.slice_data[:,:,:,self.current_slice].shape[2]/2)
-        lv_center_x,lv_center_y = lv_localize(self.slice_data[:,:,ed_mid_slice,self.current_slice])
-        segmentImg, area = segment_img_with_center(self.slice_data[:,:,self.current_img,self.current_slice],lv_center_x,lv_center_y)
+        ed_mid_image = self.slice_data[:,:,ed_mid_slice,self.current_slice]
+        ed_mid_image = np.rot90(ed_mid_image[:,::-1],1)*multiplier
+
+        ed_current_image = self.slice_data[:,:,self.current_img,self.current_slice]
+        ed_current_image = np.rot90(ed_current_image[:,::-1],1)*multiplier
+        lv_center_x,lv_center_y = lv_localize(ed_mid_image)
+        segmentImg, area = segment_img_with_center(ed_current_image,lv_center_x,lv_center_y)
         if segmentImg.any():
             height, width, channel = segmentImg.shape 
             bytesPerLine = 3 * width
@@ -342,10 +361,13 @@ class Ui_MainWindow(object):
             area_es = area_es + area1
         volume_ed = area_ed * self.header[0] * self.header[1] * self.header[2] /1000
         volume_es = area_es * self.header[0] * self.header[1] * self.header[2] /1000
+        volume_ed_int = int(volume_ed*10000) / 10000
+        volume_es_int = int(volume_es*10000) / 10000
         ejection_fraction = ((volume_ed - volume_es)/volume_ed)*100
-        self.edVolume.setText(str(volume_ed))
-        self.esVolume.setText(str(volume_es))
-        self.ejection_fraction.setText(str(ejection_fraction))
+        ejection_fraction_int = int(ejection_fraction*10000)/10000
+        self.edVolume.setText(str(volume_ed_int))
+        self.esVolume.setText(str(volume_es_int))
+        self.ejection_fraction.setText(str(ejection_fraction_int))
 
         self.runButton.setEnabled(True)
         self.inputSliceNum.setEnabled(True)

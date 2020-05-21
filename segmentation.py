@@ -91,9 +91,9 @@ def smoothing(image, choice = 1):
 	# theta = 0.25,S = 8, R = 1, alpha = 15 , n_iter = 5
 	# theta = 0.1,S = 6,R = 2,alpha = 15,n_iter = 5
 	# theta = 0.25,S = 8,R = 2,alpha = 10,n_iter = 5
-	theta = 0.25
-	S = 8 
-	R = 1 
+	theta = 0.1
+	S = 6
+	R = 2 
 	alpha = 15 
 	n_iter = 5
 	if choice == 2:
@@ -402,12 +402,14 @@ def run_with_png(image, ground_truth_img):
 		
 		cv2.drawContours(mask,final_contour,final_lv_index,color=1,thickness=-1)
 		area = cv2.contourArea(final_contour[final_lv_index])
+		area1 = np.sum(mask)
+		print(area1)
 		# cv2.drawContours(im, final_contour, final_lv_index , (0,255,0),cv2.FILLED)
 		print(area)
 	# test = contours_list[1]
 	# if test:
 	# 	print("true")
-	# cv2.drawContours(im, contours_list[1], -1 , (0,255,0),cv2.FILLED)
+	# cv2.drawContours(im, contours_list[1], -1 , (0,255,0),1)
 	#k > 2
 	cv2.drawContours(im, final_contour[final_lv_index], -1 , (0,255,0),1)
 	
@@ -453,7 +455,7 @@ def run_with_png(image, ground_truth_img):
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(233), plt.imshow(clustered_img,cmap='gray'),plt.title('Cluster')
 	plt.xticks([]), plt.yticks([])
-	plt.subplot(234), plt.imshow(mask),plt.title('LV cavity')
+	plt.subplot(234), plt.imshow(mask),plt.title('LV cavity segmented')
 	plt.xticks([]), plt.yticks([])
 	plt.subplot(235), plt.imshow(im),plt.title('Contours image')
 	plt.xticks([]), plt.yticks([])
@@ -642,6 +644,7 @@ def segment_img_with_center(image, lv_center_x, lv_center_y):
 		
 		cv2.drawContours(mask,final_contour,final_lv_index,color=1,thickness=-1)
 		area = cv2.contourArea(final_contour[final_lv_index])
+
 		# cv2.drawContours(im, final_contour, final_lv_index , (0,255,0),cv2.FILLED)
 		# print(area)
 	# test = contours_list[1]
@@ -700,14 +703,14 @@ def lv_localize(image):
 if __name__ == '__main__':
 	
 
-	img_path = '../training/patient006/original_2D_ED_slice/original_2D_04.png'
-	mask_path = "../training/patient006/original_2D_ED_mask/original_2D_04.png"
+	img_path = '../training/patient025/original_2D_ED_slice/original_2D_05.png'
+	mask_path = "../training/patient025/original_2D_ED_mask/original_2D_05.png"
 	sa_zip_file = '../training/patient068/patient068_4d.nii.gz'
 
 	image = imageio.imread(img_path)
 	ground_truth_img = imageio.imread(mask_path)
-	# run_with_png(image, ground_truth_img)
-	lv_localize(image)
+	run_with_png(image, ground_truth_img)
+	# lv_localize(image)
 
 	#k > 2 and separate cluster
 	# smoothed_img = smoothing(image)
@@ -821,6 +824,13 @@ if __name__ == '__main__':
 	# data_dir = '/home/bao/Documents/vibot_m1_slides/s2/medical image analysis/training/{}'
 	# subjects = ['patient{}'.format(str(x).zfill(3)) for x in range(1, 101)]
 	# iou_lists = []
+
+	# count_non_lv_ed = 0
+	# count_non_lv_es = 0
+
+	# count_lv_ed = 0
+	# count_lv_es = 0
+
 	# for subject in subjects:
 	# 	subject_dir = data_dir.format(subject)
 	# 	sa_zip_file = os.path.join(subject_dir,'{}_4d.nii.gz'.format(subject))
@@ -856,6 +866,58 @@ if __name__ == '__main__':
 	# 	ES_nifty_masks = nib.load(ES_mask_zip_file)
 	# 	ES_masks = np.array(ES_nifty_masks.dataobj)
 
+
+	# 	count1 = 0
+	# 	count2 = 0
+	# 	for j in range(ED_masks.shape[2]):
+	# 		ED_mask = ED_masks[:,:,j]
+	# 		max_gt_val = np.amax(ED_mask)
+	# 		if max_gt_val != 3:
+	# 			count1 += 1
+
+	# 	for j in range(ES_masks.shape[2]):
+	# 		ES_mask = ES_masks[:,:,j]
+	# 		max_gt_val = np.amax(ES_mask)
+	# 		if max_gt_val != 3:
+	# 			count2 += 1
+
+	# 	count_non_lv_ed += count1
+	# 	count_non_lv_es += count2
+
+	# 	count_lv_ed = count_lv_ed + ED_masks.shape[2] - count1
+	# 	count_lv_es = count_lv_es + ED_masks.shape[2] - count2
+
+
+	# N = 2
+	# lv_means = (count_lv_ed, count_lv_es)
+	# non_lv_means = (count_non_lv_ed, count_non_lv_es)
+
+	# ind = np.arange(N) 
+	# width = 0.15       
+	# # fig, ax = plt.subplots()  
+	# plt.figure(figsize=(6,9))  
+	# rect1 = plt.bar(ind, lv_means, width, label='Contain Left Ventricle')
+
+	# rect2 = plt.bar(ind + width, non_lv_means, width,
+	#     label='Not contain Left Ventricle')
+
+	# plt.ylabel('Number of images')
+	# plt.title('Number of images in ED slices and ES slices')
+
+	# plt.xticks(ind + width / 2, ('ED slice', 'ES slice'))
+	# plt.legend(loc='best')
+	# for rect in rect1:
+	# 	height = rect.get_height()
+	# 	plt.text(rect.get_x() + rect.get_width()/2., height+0.1,
+	# 	'%d' % int(height),
+	# 	ha='center', va='bottom')
+	# for rect in rect2:
+	# 	height = rect.get_height()
+	# 	plt.text(rect.get_x() + rect.get_width()/2., height+0.1,
+	# 	'%d' % int(height),
+	# 	ha='center', va='bottom')
+	# # plt.show()
+	# plt.savefig('chart.png', dpi=300, format='png', bbox_inches='tight') # use format='svg' or 'pdf' for vectorial pictures
 	# 	iou_list = []
 		
 	# 	for j in range(ED_imgs.shape[2]):
